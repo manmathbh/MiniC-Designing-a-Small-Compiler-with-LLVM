@@ -1,10 +1,12 @@
 # ── minicc executable ─────────────────────────────────────────────────────
-# We link against a subset of LLVM libraries. The list grows as we add IR
-# generation in later milestones.
+# LLVM components we use:
+#   support → raw_ostream, InitLLVM, error handling
+#   core    → Module, Function, IRBuilder, Type, Constants, Verifier
 #
-# For now we only need Support (LLVMContext, raw_ostream, etc.).
-# Later we will add: Core IRWriter Analysis TransformUtils InstCombine
-llvm_map_components_to_libnames(LLVM_LIBS support)
+# We do NOT link instcombine/transformutils because we run those via the
+# external `opt` tool in the driver. Keeping link deps minimal means faster
+# incremental builds and makes the "codegen only" boundary clear.
+llvm_map_components_to_libnames(LLVM_LIBS support core)
 
 add_executable(minicc
     main.cpp
@@ -17,8 +19,15 @@ add_executable(minicc
 )
 
 target_include_directories(minicc PRIVATE
-    ${CMAKE_SOURCE_DIR}/include   # our own headers
-    ${LLVM_INCLUDE_DIRS}          # LLVM public headers
+    ${CMAKE_SOURCE_DIR}/include
+    ${LLVM_INCLUDE_DIRS}
 )
 
 target_link_libraries(minicc PRIVATE ${LLVM_LIBS})
+
+# Copy runtime.c to build dir so the driver can find it
+configure_file(
+    ${CMAKE_SOURCE_DIR}/runtime/minic_runtime.c
+    ${CMAKE_BINARY_DIR}/minic_runtime.c
+    COPYONLY
+)
